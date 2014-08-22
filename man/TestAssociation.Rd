@@ -1,0 +1,37 @@
+\name{TestAssociation}
+\alias{TestAssociation}
+\title{Test association of a per-gene attribute with each column in a GeneMatrix}
+\usage{
+TestAssociation(m, genes, y, method = "lasso", ...)
+}
+\arguments{
+  \item{m}{A GeneMatrix object}
+
+  \item{genes}{A vector of gene names (must match the gene
+  names in the GeneMatrix)}
+
+  \item{y}{A per-gene metric of the same length as the
+  vector of gene names}
+
+  \item{method}{Method used to test association between the
+  per-gene metric and each column - either c("lasso",
+  "t.test", "wilcoxon" or "hypergeometric")}
+
+  \item{...}{Additional arguments that will be given to the
+  test in question}
+}
+\description{
+Test the association of a per-gene attribute y with each
+column, where a column can represent a gene set, a motif,
+transcription factor targets, or other genes that are
+functionally related
+}
+\details{
+A t.test or wilcoxon test can take an additional argument
+of \code{alternative}, which allows a one-sided test with
+an alternative hypothesis of "less" or "greater". A t.test
+can also take the \code{var.equal} argument, indicating
+whether to treat the variance in and outside each group as
+identical.
+}
+

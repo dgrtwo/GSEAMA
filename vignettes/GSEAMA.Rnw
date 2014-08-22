@@ -1,0 +1,132 @@
+\documentclass{article}
+
+%\VignetteEngine{knitr::knitr}
+%\VignetteIndexEntry{subSeq Example}
+
+\usepackage{natbib}
+\usepackage{graphics}
+\usepackage{amsmath}
+\usepackage{indentfirst}
+\usepackage[utf8]{inputenc}
+\usepackage{hyperref}
+
+\Sexpr{library(knitr); opts_chunk$set(tidy=TRUE, cache=TRUE, warning=FALSE, message=FALSE)}
+
+<<foo,include=FALSE,echo=FALSE>>=
+options(keep.source = TRUE, width = 60)
+desc <- packageDescription("GSEAMA")
+@
+
+\title{GSEAMA (Gene Set Enrichment Analysis with LASSO) Package Vignette (Version \Sexpr{desc$Version})}
+\author{David G. Robinson}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+This is a vignette for the \verb@GSEAMA@ package, which performs gene set enrichment analysis using Lasso (L1-constrained) regression. \emph{etc}
+
+\section{Example}
+
+\subsection{Data}
+
+First we load in data from the RNA-Seq/Microarray factorial experiment comparing glucose and ethanol:
+
+<<import_data>>=
+library(GSEAMA)
+data(factorial)
+
+dim(factorial)
+head(factorial)
+@
+
+The only inputs we need are the systematic name of each gene (\texttt{factorial\$ORF}) and some metric in which we are measuring enrichment. Here we have four choices: the p-values or the log fold-changes from either the RNA-Seq or the microarray parallel experiment. We'll use the RNA-Seq log fold changes for this experiment.
+
+\subsection{Membership Matrix}
+
+The central data structure of this package is the GeneMatrix class. You can create one quite easily by providing the GO map for that species as found in the \href{http://www.bioconductor.org/packages/release/data/annotation/}{AnnotationData} Packages.
+\begin{center}
+\begin{tabular}{| c | c | c |}
+\hline
+\textbf{Organism} & \textbf{Package} & \textbf{GO map} \\
+\hline
+Yeast & \texttt{org.Sc.sgd.db} & \texttt{org.Sc.sgdGO} \\
+\hline
+Human & \texttt{org.Hs.eg.db} & \texttt{org.Hs.egGO} \\
+\hline
+Mouse & \texttt{org.Mm.eg.db} & \texttt{org.Mm.egGO} \\
+\hline
+E. coli K12 & \texttt{org.EcK12.eg.db} & \texttt{org.EcK12.egGO} \\
+\hline
+\end{tabular}
+\end{center}
+
+<<create_mm, dependson="import_data">>=
+library(org.Sc.sgd.db)
+mm = GOMembershipMatrix(org.Sc.sgdGO, ontology="BP", min.size=5, max.size=250)
+@
+
+The membership matrix includes useful information about each gene set:
+
+<<show_set_data, dependson="create_mm">>=
+mm@colData[398, ]
+@
+
+As well as a table of information about each gene:
+
+<<show_gene_data, dependson="create_mm">>=
+mm@geneData
+@
+
+\clearpage
+
+\subsection{Wilcoxon Test}
+
+One simple test you can perform is a Wilcoxon rank sum test, comparing the $y$ within a set to the $y$ outside that set. This can be done with the \texttt{TestAssociation} function:
+
+<<test_wilcoxon, dependson="create_mm">>=
+wilcoxon.mm = TestAssociation(mm, factorial$ORF, factorial$RNA.Seq.logFC, method="wilcoxon")
+@
+
+It returns a MembershipMatrix object as well. The p-values from the Wilcoxon test have been added to the \texttt{colData} table (one p-value for each set).
+
+<<hist_Wilcoxon_pvalues, dependson="test_wilcoxon">>=
+hist(wilcoxon.mm@colData$pvalue)
+@
+
+The \texttt{CompareTopColumns} function is useful for looking at the actual distribution of $y$ within each of the top significant sets:
+
+<<top_sets, dependson="test_wilcoxon">>=
+CompareTopColumns(wilcoxon.mm)
+@
+
+If you are interested in other specific gene sets, you can use the CompareY function to compare them one at a time, by ID:
+
+<<compare_Y, dependson="test_wilcoxon">>=
+CompareY(wilcoxon.mm, "GO:0006094")
+@
+
+Or we can look at multiple sets that we're interested in:
+
+<<>>=
+glucose.genes = wilcoxon.mm@colData[grep("glucose", Definition), ]$ID
+glucose.genes
+
+CompareY(wilcoxon.mm, glucose.genes)
+@
+
+\subsection{LASSO}
+
+One flaw with the Wilcoxon test is that it treats every hypothesis as being separate, when in fact they are likely highly correlated. For example, gene sets are highly redundant: all gene sets are contained within "parent" gene sets, and some heavily overlap.
+
+<<lasso, dependson="create_mm">>=
+lasso.mm = TestAssociation(mm, factorial$ORF, factorial$RNA.Seq.logFC, method="lasso")
+@
+
+<<plot_top_lasso, dependson="lasso">>=
+CompareTopColumns(lasso.mm, n=15)
+@
+
+\end{document}

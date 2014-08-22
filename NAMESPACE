@@ -1,0 +1,8 @@
+export(CompareTopColumns)
+export(CompareY)
+export(GOMembershipMatrix)
+export(TestAssociation)
+import(AnnotationDbi)
+import(Matrix)
+import(data.table)
+importFrom(GO.db,GOTERM)

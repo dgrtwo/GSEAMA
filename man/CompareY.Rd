@@ -1,0 +1,26 @@
+\name{CompareY}
+\alias{CompareY}
+\title{Create a violin plot, boxplot or histogram looking at the metric of interest
+over one or more columns}
+\usage{
+CompareY(m, columns, mode = "violin", charlimit = 35)
+}
+\arguments{
+  \item{m}{a GeneMatrix}
+
+  \item{columns}{The ID of one or more columns to plot}
+
+  \item{mode}{Type of plot to create: either "violin",
+  "boxplot" or "histogram"}
+
+  \item{charlimit}{Maximum number of characters to include
+  in column names}
+}
+\description{
+This compares the metric of interest (y) across the given
+genes, as well as comparing it to the overall distribution.
+This shows a visual representation of how a column (a gene
+set, a motif, a transcription factor, etc) is associated
+with the metric.
+}
+
