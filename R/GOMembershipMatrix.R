@@ -42,7 +42,7 @@
 #' 
 #' @export
 GOMembershipMatrix = function(annotations, ontology=NULL, evidence=NULL,
-                            min.size=0, max.size=1e6, ancestors=TRUE) {
+                            min.size=0, max.size=1e6, ancestors=TRUE, chosen_genes = NULL) {
     # create membership matrix
     frame.dt = data.table(toTable(annotations))
     if (is.null(ontology)) {
@@ -58,6 +58,11 @@ GOMembershipMatrix = function(annotations, ontology=NULL, evidence=NULL,
     frame.dt = frame.dt[!duplicated(frame.dt[, list(get(id.field), go_id)]), ]
     
     genes = sort(unique(frame.dt[[id.field]]))
+    if (!is.null(chosen_genes)){
+      genes = genes[genes %in% chosen_genes]
+      frame.dt = frame.dt[systematic_name %in% chosen_genes]
+    }
+    
     sets = sort(unique(frame.dt$go_id))
     
     m = Matrix(0, nrow=length(genes), ncol=length(sets),
