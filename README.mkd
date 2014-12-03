@@ -1,2 +1,17 @@
 Gene Set Enrichment Analysis Made Awesome
 =============================
+
+Installation
+-------------
+
+First install the Bioconductor dependencies:
+
+    source("http://bioconductor.org/biocLite.R")
+    biocLite(c("GO.db", "AnnotationDbi"))
+
+Then install the [devtools](https://github.com/hadley/devtools) package, and use it to install GSEAMA:
+
+    install.packages("devtools")
+    devtools::install_github("dgrtwo/GSEAMA")
+
+The package vignette can be downloaded [here](https://github.com/dgrtwo/GSEAMA/blob/master/_vignettes/GSEAMA.pdf?raw=true).
