@@ -2,26 +2,20 @@ Package: GSEAMA
 Type: Package
 Title: Gene set enrichment analysis made awesome
 Version: 0.99.0
-Date: 2014-03-23
+Date: 2016-01-21
 Author: David Robinson
-Maintainer: David Robinson <dgrtwo@princeton.edu>
-Description: Gene set enrichment analysis methods based on a membership matrix
-Depends:
-    Matrix,
-    data.table,
-    ggplot2,
-    qvalue,
-    GO.db,
-    glmnet
+Maintainer: David Robinson <admiral.david@gmail.com>
+Description: Efficient and interpretable gene set enrichment analysis methods
+  based on a membership matrix.
 VignetteBuilder: knitr
 Imports:
-    Matrix,
-    data.table,
-    ggplot2,
-    GO.db,
-    AnnotationDbi
+  dplyr,
+  Matrix,
+  ggplot2,
+  AnnotationDbi
 Suggests:
-    knitr,
-    testthat
+  glmnet,
+  knitr,
+  testthat
 URL: http://github.com/dgrtwo/GSEAMA
 License: MIT + file LICENSE

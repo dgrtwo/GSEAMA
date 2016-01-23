@@ -8,8 +8,8 @@
 setClass("GeneMatrix",
     representation(
         matrix = "Matrix",
-        colData = "data.table",
-        geneData = "data.table",
+        colData = "ANY",
+        geneData = "ANY",
         fit = "ANY",
         rankingMetric = "character"
     )
