@@ -45,9 +45,9 @@ TestAssociation = function(m, genes, y, method = "lasso", ...) {
         m@colData$beta1se <- as.numeric(m@fit$glmnet.fit$beta[, as.numeric(beta_ind)])
         m@colData$step <- apply(m@fit$glmnet.fit$beta, 1,
                                 function(r) which(r != 0)[1])
-        m@colData$absbeta1se <- abs(m@colData$step)
+        m@colData$ranking <- -abs(m@colData$step)
         
-        m@rankingMetric <- "absbeta1se"
+        m@rankingMetric <- "ranking"
         m@effectMetric <- "beta"
     }
     else if (method == "t.test") {

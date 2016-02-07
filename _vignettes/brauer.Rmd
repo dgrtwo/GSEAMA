@@ -1,5 +1,5 @@
 ---
-title: "brauer"
+title: "Analysis of Brauer et al 2008"
 output: html_document
 ---
 
@@ -39,19 +39,28 @@ td <- tidy(eb, intercept = TRUE) %>%
   separate(gene, c("ID", "nutrient"), sep = "_") %>%
   filter(!is.na(estimate))
 
-N <- td %>%
+td <- td %>%
   group_by(term, ID) %>%
   mutate(centered = estimate - (sum(estimate) - estimate) / (n() - 1)) %>%
-  ungroup() %>%
+  ungroup()
+
+combined <- td %>%
+  group_by(term, ID) %>%
+  summarise(centered = mean(estimate)) %>%
+  bind_rows(td) %>%
+  replace_na(list(nutrient = "Average"))
+
+P <- td %>%
   filter(term == "rate", nutrient == "Phosphate")
 ```
 
 ```{r}
 library(GSEAMA)
 library(org.Sc.sgd.db)
-mm <- GOMembershipMatrix(org.Sc.sgdGO, min_size = 5, max_size = 2000)
+mm <- GOMembershipMatrix(org.Sc.sgdGO, ontology = "BP", min_size = 5, max_size = 2000)
 
-a <- TestAssociation(mm, N$ID, N$centered, method = "lasso")
+# need to apply BP, MF or CC before here for LASSO
+a <- TestAssociation(mm, P$ID, P$centered, method = "lasso")
 ```
 
 ```{r}
@@ -59,9 +68,65 @@ library(igraph)
 library(ggraph)
 library(ggforce)
 
-set.seed(2016)
-edges <- GetEdgesTable(a, ontology = "BP")
-
 g <- GenerateNetwork(a)
 PlotNetwork(g)
+```
+
+```{r}
+library(multidplyr)
+
+# TODO: don't use multidplyr
+associations_setup <- combined %>%
+  dplyr::select(term, nutrient, ID, centered) %>%
+  nest(ID, centered)
+
+associations_setup$mm <- lapply(1:nrow(associations_setup), function(x) mm)
+
+associations <- associations_setup %>%
+  group_by(term, nutrient) %>%
+  do(association = GSEAMA::TestAssociation(.$mm[[1]], .$data[[1]]$ID, .$data[[1]]$centered, method = "lasso")) %>%
+  collect()
+
+associations$networks <- mclapply(associations$association, GSEAMA::GenerateNetwork)
+associations$graphs <- mclapply(associations$networks, GSEAMA::PlotNetwork)
+
+save(associations, file = "~/Desktop/associations.rda")
+```
+
+```{r}
+sets_each <- associations %>%
+  group_by(term, nutrient) %>%
+  do(data.frame(set = ThresholdSets(.$association[[1]])))
+
+big_network <- GenerateNetwork(associations$association[[1]], sets = unique(sets_each$set))
+
+layout <- createLayout(big_network, "igraph", algorithm = "kk")
+terms <- trim_ellipses(layout$Term, 30)
+
+for (i in seq_len(nrow(associations))) {
+  name <- paste(associations$term[i], associations$nutrient[i])
+  adata <- associations$association[[i]]@colData
+  layout$MeanDifference <- adata$MeanDifference[match(layout$ID, adata$ID)]
+  layout$MeanDifference <- pmax(pmin(layout$MeanDifference, 1), -1)
+  layout$Term <- ifelse(abs(layout$MeanDifference) > .5, terms, NA)
+  
+  g <- ggraph(data = layout) +
+    geom_edge_link() +
+    geom_node_point(aes(color = MeanDifference, size = Size)) +
+    geom_node_text(aes(label = Term, alpha = abs(MeanDifference) ^ 2), check_overlap = TRUE, size = 3) +
+    ggforce::theme_no_axes() +
+    scale_colour_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
+    ggtitle(name)
+
+  ggsave(filename = paste0(name, ".png"), g)
+}
+```
+
+```{r}
+#PlotNetwork(big_network)
+all_set_data <- associations %>%
+  group_by(term, nutrient) %>%
+  do(.$assocation[[1]]@colData)
+
+
 ```
