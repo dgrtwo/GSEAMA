@@ -7,9 +7,11 @@
 #' @param y numeric vector to test each column of m against
 #' @param var.equal assume that the variances are equal
 #' @param alternative whether to use a one-sided test, and if so which way
+#' @param tbl Whether to return as a data frame
 #'
 #' @export
-vectorized_t_test <- function(m, y, var.equal=FALSE, alternative="two.sided") {
+vectorized_t_test <- function(m, y, var.equal=FALSE, alternative="two.sided",
+                              tbl = FALSE) {
   stopifnot(NROW(m) == length(y))
   
   in.m <- y * m
@@ -42,9 +44,15 @@ vectorized_t_test <- function(m, y, var.equal=FALSE, alternative="two.sided") {
                  greater = pt(tstat, df, lower.tail = FALSE),
                  two.sided = 2 * pt(-abs(tstat), df))
 
-  # name them, if the matrix has names
-  names(PVAL) <- colnames(m)
-  PVAL
+  if (tbl) {
+    ret <- data.frame(column = colnames(m),
+                      p.value = PVAL,
+                      estimate = in.mu - out.mu)
+  } else {
+    # name them, if the matrix has names
+    names(PVAL) <- colnames(m)
+    PVAL
+  }
 }
 
 

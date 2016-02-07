@@ -24,7 +24,7 @@
 #' or CC (Cellular Compartment) ontologies (by default all are included).
 #' 
 #' @import Matrix AnnotationDbi
-#' @importFrom dplyr %>% data_frame tbl_df filter mutate group_by arrange
+#' @importFrom dplyr %>% data_frame tbl_df filter mutate group_by arrange distinct_
 #' 
 #' @examples
 #' 
@@ -54,6 +54,10 @@ GOMembershipMatrix = function(annotations,
     filter(Ontology %in% ontology)
     #filter(go_id %in% available_go_ids)
   
+  ontology_tbl <- frame_df %>%
+    dplyr::select(ID = go_id, Ontology) %>%
+    distinct(ID, by = "ID")
+
   if (!is.null(evidence)) {
     frame_df <- frame_df %>%
       filter(evidence %in% Evidence)
@@ -91,7 +95,11 @@ GOMembershipMatrix = function(annotations,
   set_data <- data_frame(ID = sets,
                         Term = Term(sets),
                         Definition = Definition(sets),
-                        Size = colSums(m))
+                        Size = colSums(m)) %>%
+    inner_join(ontology_tbl)
+  
+  # just make sure nothing was reordered
+  stopifnot(!all(sets == set_data))
   
   # create table of gene data
   gene_data <- data_frame(ID = rownames(m), Size = rowSums(m))
@@ -112,19 +120,55 @@ GOMembershipMatrix = function(annotations,
 #' represents a descendant, with 1 marking ancestor/descendant pairs.
 #' 
 #' @param terms IDs of GO terms that should be included in the ancestry matrix
+#' @param ontology Ontologies to use
+#' @param type Either OFFSPRING (default), CHILDREN, ANCESTOR, or PARENT
+#' 
+#' @import GO.db
 #' 
 #' @export
-get_ancestry_matrix <- function(sets) {
+get_ancestry_matrix <- function(terms, ontology = c("BP", "MF", "CC"),
+                                type = "OFFSPRING", upward = TRUE, tbl = FALSE) {
   offspring_df <- do.call(rbind, (lapply(ontology, function(o) {
-    toTable(get(paste0("GO", o, "OFFSPRING")))
-  })))
+    toTable(get(paste0("GO", o, type)))
+  })))[, 1:2]
   
   ret <- offspring_df %>%
     setNames(c("go_id1", "go_id2")) %>%
-    filter(go_id1 %in% sets, go_id2 %in% sets) %>%
-    mutate(go_id1 = factor(go_id1, levels = sets),
-           go_id2 = factor(go_id2, levels = sets)) %>%
-    sparse_cast(go_id1, go_id2)
+    filter(go_id1 %in% terms, go_id2 %in% terms) %>%
+    mutate(go_id1 = factor(go_id1, levels = terms),
+           go_id2 = factor(go_id2, levels = terms)) %>%
+    tbl_df()
   
+  if (!upward) {
+    tmp <- ret$go_id1
+    ret$go_id1 <- ret$go_id2
+    ret$go_id2 <- tmp
+  }
+  
+  if (!tbl) {
+    ret <- sparse_cast(ret, go_id1, go_id2)
+  }
+  
+  ret
+}
+
+
+#' Get all GO IDs in all_IDs that are ancestors/descendants of those in IDs
+#' 
+#' @param x A vector of GO IDs
+#' @param all_IDs A vector of GO IDs to look for relatives of x
+#' @param ancestors If true look among ancestors, if false look for children
+#' @param combine Whether to combine it with the sets in the IDs parameter
+GetGORelatives <- function(IDs, all_IDs,
+                             ancestors = TRUE,
+                             direct = FALSE,
+                             combine = TRUE) {
+  type <- if (direct) { "CHILDREN" } else { "OFFSPRING" }
+  am <- get_ancestry_matrix(all_IDs, type = type, upward = ancestors)
+  ret <- names(which(colSums(am[IDs, , drop = FALSE]) > 0))
+  
+  if (combine) {
+    ret <- unique(c(IDs, ret))
+  }
   ret
 }

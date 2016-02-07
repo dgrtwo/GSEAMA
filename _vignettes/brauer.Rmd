@@ -1,0 +1,67 @@
+---
+title: "brauer"
+output: html_document
+---
+
+```{r}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+url <- "http://varianceexplained.org/files/Brauer2008_DataSet1.tds"
+nutrient_names <- c(G = "Glucose", L = "Leucine", P = "Phosphate",
+                    S = "Sulfate", N = "Ammonia", U = "Uracil")
+
+cleaned_data <- read_delim(url, delim = "\t") %>%
+  separate(NAME, c("name", "BP", "MF", "systematic_name", "number"), sep = "\\|\\|") %>%
+  mutate_each(funs(trimws), name:systematic_name) %>%
+  dplyr::select(-number, -GID, -YORF, -GWEIGHT) %>%
+  gather(sample, expression, G0.05:U0.3) %>%
+  separate(sample, c("nutrient", "rate"), sep = 1, convert = TRUE) %>%
+  mutate(nutrient = plyr::revalue(nutrient, nutrient_names)) %>%
+  filter(!is.na(expression), systematic_name != "")
+
+exprs <- cleaned_data %>%
+  reshape2::acast(systematic_name + nutrient ~ rate, value.var = "expression")
+
+head(exprs)
+
+rate <- as.numeric(colnames(exprs))
+
+library(limma)
+fit <- lmFit(exprs, model.matrix(~rate))
+eb <- eBayes(fit)
+
+library(biobroom)
+library(tidyr)
+td <- tidy(eb, intercept = TRUE) %>%
+  separate(gene, c("ID", "nutrient"), sep = "_") %>%
+  filter(!is.na(estimate))
+
+N <- td %>%
+  group_by(term, ID) %>%
+  mutate(centered = estimate - (sum(estimate) - estimate) / (n() - 1)) %>%
+  ungroup() %>%
+  filter(term == "rate", nutrient == "Phosphate")
+```
+
+```{r}
+library(GSEAMA)
+library(org.Sc.sgd.db)
+mm <- GOMembershipMatrix(org.Sc.sgdGO, min_size = 5, max_size = 2000)
+
+a <- TestAssociation(mm, N$ID, N$centered, method = "lasso")
+```
+
+```{r}
+library(igraph)
+library(ggraph)
+library(ggforce)
+
+set.seed(2016)
+edges <- GetEdgesTable(a, ontology = "BP")
+
+g <- GenerateNetwork(a)
+PlotNetwork(g)
+```
