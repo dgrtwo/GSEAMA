@@ -58,7 +58,7 @@ TestAssociation = function(m, genes, y, method = "lasso", ...) {
         m@effectMetric <- "estimate"
     }
     else if (method == "wilcoxon") {
-        w <- vectorized_wilcoxon(m@matrix > 0, y, tbl = TRUE, ...)
+        w <- vectorized_wilcoxon_test(m@matrix > 0, y, tbl = TRUE, ...)
         m@colData$auc <- w$auc
         m@colData$p.value <- w$p.value
         m@rankingMetric <- "p.value"
