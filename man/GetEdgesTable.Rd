@@ -20,6 +20,9 @@ in the matrix}
 
 \item{...}{Extra arguments passed on to threshold_sets}
 }
+\value{
+An igraph
+}
 \description{
 Create a data frame of edges from a GO term matrix
 }

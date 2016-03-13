@@ -12,6 +12,7 @@
 #' @param max_size Maximum size of a gene set to be included
 #' @param ancestors Whether a gene included in a gene set should also be included
 #' as being in all ancestors of that gene set (default TRUE)
+#' @param chosen_genes If provided, restricts genes to those in chosen_genes
 #' 
 #' The GO annotation maps typically come from the Bioconductor AnnotationDB packages.
 #' A couple of notable examples are:
@@ -37,7 +38,7 @@
 #' 
 #' # human membership matrix
 #' library(org.Hs.eg.db)
-#' mm <- GOMembershipMatrix(org.Hs.sgdGO, min.size = 5, max.size = 250)
+#' mm <- GOMembershipMatrix(org.Hs.sgdGO, min_size = 5, max_size = 250)
 #' 
 #' @export
 GOMembershipMatrix = function(annotations,
@@ -56,7 +57,7 @@ GOMembershipMatrix = function(annotations,
   
   ontology_tbl <- frame_df %>%
     dplyr::select(ID = go_id, Ontology) %>%
-    distinct(ID, by = "ID")
+    dplyr::distinct(ID, by = "ID")
 
   if (!is.null(evidence)) {
     frame_df <- frame_df %>%
@@ -65,7 +66,7 @@ GOMembershipMatrix = function(annotations,
   
   id_field <- colnames(frame_df)[1]
   frame_df <- frame_df %>%
-    distinct_(id_field, "go_id")
+    dplyr::distinct_(id_field, "go_id")
   
   if (!is.null(chosen_genes)) {
     frame_df <- frame_df[frame_df[[id_field]] %in% genes, ]

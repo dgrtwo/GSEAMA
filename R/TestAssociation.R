@@ -16,6 +16,30 @@
 #' A t=test can also take the \code{var.equal} argument, indicating whether to treat the
 #' variance in and outside each group as identical.
 #' 
+#' LASSO fits a penalized least squares model: 
+#' 
+#' min    (y - \beta X)^2 + \lambda \sum|\beta|}
+#' 
+#' @examples
+#' 
+#'library(org.Sc.sgd.db)
+#'
+#'n_genes <- 200
+#'genes <- sample(mappedkeys(org.Sc.sgdGO), n_genes)
+#'
+#'mm <- GOMembershipMatrix(org.Sc.sgdGO, min_size = 5,
+#'                        max_size = 50, chosen_genes = genes)
+#'# some genes are dropped because they do not have GO categories
+#'
+#'n_genes <- nrow(mm)
+#'genes <- mm@geneData$ID
+#'
+#'beta = c(20:1, rep(0, times = nrow(mm@colData)-20))
+#'y = c(as.matrix(mm) %*% beta + rnorm(n_genes, 0, 2))
+#'
+#'results <- TestAssociation(mm, genes, y)
+#'View(results@colData)
+#' 
 #' @export
 TestAssociation = function(m, genes, y, method = "lasso", ...) {
     if (!inherits(m, "GeneMatrix")) {
@@ -98,7 +122,6 @@ TestAssociation = function(m, genes, y, method = "lasso", ...) {
     m
 }
 
-
 #' Compute mean differences between "in a set" and "not in a set"
 #' 
 #' For each set in a GeneMatrix, compute the difference in y between
@@ -140,10 +163,6 @@ mean_difference <- function(m) {
 #' 
 #' @seealso \link{p.adjust}, \link{p.adjust.methods}
 ThresholdSets <- function(m, alpha = .05, method = "fdr", ...) {
-  if (!is.null(m@colData$beta1se)) {
-    # LASSO, filter by beta1se
-    return(m@colData$ID[m@colData$beta1se != 0])
-  }
   
   if (method == "qvalue") {
     p.adjusted <- qvalue::qvalue(m@colData$p.value, ...)$qvalues

@@ -23,10 +23,25 @@ Test the association of a per-gene attribute y with each column, where a column
 can represent a gene set, a motif, transcription factor targets, or other genes
 that are functionally related
 }
-\details{
-A t-test or Wilcoxon test can take an additional argument of \code{alternative},
-which allows a one-sided test with an alternative hypothesis of "less" or "greater".
-A t=test can also take the \code{var.equal} argument, indicating whether to treat the
-variance in and outside each group as identical.
+\examples{
+
+library(org.Sc.sgd.db)
+
+n_genes <- 200
+genes <- sample(mappedkeys(org.Sc.sgdGO), n_genes)
+
+mm <- GOMembershipMatrix(org.Sc.sgdGO, min_size = 5,
+                       max_size = 50, chosen_genes = genes)
+# some genes are dropped because they do not have GO categories
+
+n_genes <- nrow(mm)
+genes <- mm@geneData$ID
+
+beta = c(20:1, rep(0, times = nrow(mm@colData)-20))
+y = c(as.matrix(mm) \%*\% beta + rnorm(n_genes, 0, 2))
+
+results <- TestAssociation(mm, genes, y)
+View(results@colData)
+
 }
 

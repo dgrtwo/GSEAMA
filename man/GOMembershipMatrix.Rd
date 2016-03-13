@@ -22,7 +22,9 @@ of c("BP", "MF", "CC")}
 \item{max_size}{Maximum size of a gene set to be included}
 
 \item{ancestors}{Whether a gene included in a gene set should also be included
-as being in all ancestors of that gene set (default TRUE)
+as being in all ancestors of that gene set (default TRUE)}
+
+\item{chosen_genes}{If provided, restricts genes to those in chosen_genes
 
 The GO annotation maps typically come from the Bioconductor AnnotationDB packages.
 A couple of notable examples are:
@@ -49,7 +51,7 @@ mm <- GOMembershipMatrix(org.Sc.sgdGO, ontology = "BP", min_size = 5, max_size =
 
 # human membership matrix
 library(org.Hs.eg.db)
-mm <- GOMembershipMatrix(org.Hs.sgdGO, min.size = 5, max.size = 250)
+mm <- GOMembershipMatrix(org.Hs.sgdGO, min_size = 5, max_size = 250)
 
 }
 
