@@ -112,6 +112,9 @@ TestAssociation = function(m, genes, y, method = "lasso", ...) {
         m@effectMetric <- "phi"
     }
     
+    # save the method used
+    m@assocMethod <- method
+    
     # finally, compute the difference within and between the sets
     mat <- m@matrix
     not_mat <- 1 - mat
@@ -164,10 +167,16 @@ mean_difference <- function(m) {
 #' @seealso \link{p.adjust}, \link{p.adjust.methods}
 ThresholdSets <- function(m, alpha = .05, method = "fdr", ...) {
   
-  if (method == "qvalue") {
-    p.adjusted <- qvalue::qvalue(m@colData$p.value, ...)$qvalues
-  } else {
-    p.adjusted <- p.adjust(m@colData$p.value, method, ...)
+  if(m@assocMethod == "lasso"){
+    # filtering of lasso values where beta1sd != 0
+    m@colData$ID[m@colData$beta1se != 0]
+  }else{
+    # p-value filtering based on provided filter_method
+    if (method == "qvalue") {
+      p.adjusted <- qvalue::qvalue(m@colData$p.value, ...)$qvalues
+    } else {
+      p.adjusted <- p.adjust(m@colData$p.value, method, ...)
+    }
+    m@colData$ID[!is.na(p.adjusted) & p.adjusted < alpha]
   }
-  m@colData$ID[!is.na(p.adjusted) & p.adjusted < alpha]
 }

@@ -50,23 +50,23 @@ GOMembershipMatrix = function(annotations,
                                 chosen_genes = NULL) {
   # create membership matrix
   frame_df <- annotations %>%
-    toTable() %>%
-    tbl_df() %>%
-    filter(Ontology %in% ontology)
+    AnnotationDbi::toTable() %>%
+    dplyr::tbl_df() %>%
+    dplyr::filter(Ontology %in% ontology)
     #filter(go_id %in% available_go_ids)
   
   ontology_tbl <- frame_df %>%
     dplyr::select(ID = go_id, Ontology) %>%
-    dplyr::distinct(ID, by = "ID")
+    dplyr::distinct(ID, .keep_all = TRUE)
 
   if (!is.null(evidence)) {
     frame_df <- frame_df %>%
-      filter(evidence %in% Evidence)
+      dplyr::filter(evidence %in% Evidence)
   }
   
   id_field <- colnames(frame_df)[1]
   frame_df <- frame_df %>%
-    dplyr::distinct_(id_field, "go_id")
+    dplyr::distinct_(id_field, "go_id", .keep_all = TRUE)
   
   if (!is.null(chosen_genes)) {
     frame_df <- frame_df[frame_df[[id_field]] %in% genes, ]
@@ -97,7 +97,7 @@ GOMembershipMatrix = function(annotations,
                         Term = Term(sets),
                         Definition = Definition(sets),
                         Size = colSums(m)) %>%
-    inner_join(ontology_tbl)
+    dplyr::inner_join(ontology_tbl, by = "ID")
   
   # just make sure nothing was reordered
   stopifnot(!all(sets == set_data))

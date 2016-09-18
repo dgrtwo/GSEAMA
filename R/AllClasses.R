@@ -12,6 +12,7 @@ setClass("GeneMatrix",
         geneData = "ANY",
         fit = "ANY",
         rankingMetric = "character",
-        effectMetric = "character"
+        effectMetric = "character",
+        assocMethod = "character"
     )
 )

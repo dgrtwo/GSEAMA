@@ -26,8 +26,8 @@ GetEdgesTable <- function(m, sets = NULL, ancestors = TRUE,
   }
   
   go_terms <- m@colData %>%
-    filter(ID %in% sets) %>%
-    filter(Ontology %in% ontology)
+    dplyr::filter(ID %in% sets) %>%
+    dplyr::filter(Ontology %in% ontology)
   
   # get direct edges going downward to create the graph, and combine with column data
   edges <- get_ancestry_matrix(go_terms$ID, tbl = TRUE, type = "CHILDREN", upward = FALSE) %>%
