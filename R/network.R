@@ -31,10 +31,10 @@ GetEdgesTable <- function(m, sets = NULL, ancestors = TRUE,
   
   # get direct edges going downward to create the graph, and combine with column data
   edges <- get_ancestry_matrix(go_terms$ID, tbl = TRUE, type = "CHILDREN", upward = FALSE) %>%
-    mutate(go_id1 = as.character(go_id1)) %>%
-    mutate(go_id2 = as.character(go_id2)) %>%
-    left_join(dplyr::select(go_terms, ID, Ontology), by = c(go_id1 = "ID")) %>%
-    tbl_df()
+    dplyr::mutate(go_id1 = as.character(go_id1)) %>%
+    dplyr::mutate(go_id2 = as.character(go_id2)) %>%
+    dplyr::left_join(dplyr::select(go_terms, ID, Ontology), by = c(go_id1 = "ID")) %>%
+    dplyr::tbl_df()
   
   edges
 }
@@ -99,5 +99,6 @@ PlotNetwork <- function(g, algorithm = 'kk', arrow = grid::arrow(length = grid::
     geom_node_point(aes(color = MeanDifference, size = Size)) +
     geom_node_text(aes(label = Term), check_overlap = TRUE, size = 3) +
     ggforce::theme_no_axes() +
-    scale_colour_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar")
+    scale_colour_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0,
+                           space = "Lab", na.value = "grey50", guide = "colourbar")
 }

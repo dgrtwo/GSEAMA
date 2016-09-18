@@ -16,6 +16,8 @@ Imports:
     qvalue
 Suggests:
     glmnet,
+    graph,
+    RBGL,
     knitr,
     testthat
 URL: http://github.com/dgrtwo/GSEAMA

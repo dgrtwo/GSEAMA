@@ -73,6 +73,7 @@ TestAssociation = function(m, genes, y, method = "lasso", ...) {
         
         m@rankingMetric <- "ranking"
         m@effectMetric <- "beta"
+        m@plottingMetric <- "beta1se"
     }
     else if (method == "t.test") {
         tt <- vectorized_t_test(m@matrix > 0, y, tbl = TRUE, ...)
@@ -80,6 +81,7 @@ TestAssociation = function(m, genes, y, method = "lasso", ...) {
         m@colData$p.value <- tt$p.value
         m@rankingMetric <- "p.value"
         m@effectMetric <- "estimate"
+        m@plottingMetrix <- "estimate"
     }
     else if (method == "wilcoxon") {
         w <- vectorized_wilcoxon_test(m@matrix > 0, y, tbl = TRUE, ...)
@@ -87,7 +89,7 @@ TestAssociation = function(m, genes, y, method = "lasso", ...) {
         m@colData$p.value <- w$p.value
         m@rankingMetric <- "p.value"
         m@effectMetric <- "auc"
-
+        m@plottingMetric <- "auc"
     }
     else if (method == "hypergeometric") {
         if (!is.logical(y) & !(is.numeric(y) & all(y == 0 | y == 1))) {
@@ -110,6 +112,7 @@ TestAssociation = function(m, genes, y, method = "lasso", ...) {
                                     lower.tail = FALSE)
         m@rankingMetric <- "p.value"
         m@effectMetric <- "phi"
+        m@plottingMetric <- "phi"
     }
     
     # save the method used
