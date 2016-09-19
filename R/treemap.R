@@ -17,6 +17,17 @@
 #' @export
 #' @return Generates a treemap hierarchy
 GenerateTreemap <- function(m, edges = NULL, ...) {
+  
+  if(!requireNamespace("igraph", quietly = T)){
+    stop("igraph is required for treemaps")
+  }
+  if(!requireNamespace("graph", quietly = T)){
+    stop("graph is required for treemaps")
+  }
+  if(!requireNamespace("RBGL", quietly = T)){
+    stop("RBGL is required for treemaps")
+  }
+  
   if (is.null(edges)) {
     signif_sets <- ThresholdSets(m, ...)
     edges <- GetEdgesTable(m, sets = m@colData$ID, ...)

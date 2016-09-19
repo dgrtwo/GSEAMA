@@ -3,8 +3,10 @@ Type: Package
 Title: Gene set enrichment analysis made awesome
 Version: 0.99.0
 Date: 2016-01-21
-Author: David Robinson
-Maintainer: David Robinson <admiral.david@gmail.com>
+Authors@R: c(
+    person("David", "Robinson", email = "admiral.david@gmail.com", role = c("aut", "cre")),
+    person("Sean", "Hackett", email = "seanmchackett@gmail.com", role = c("aut"))
+    )
 Description: Efficient and interpretable gene set enrichment analysis methods
     based on a membership matrix.
 VignetteBuilder: knitr
@@ -16,6 +18,7 @@ Imports:
     qvalue
 Suggests:
     glmnet,
+    igraph,
     graph,
     RBGL,
     knitr,
