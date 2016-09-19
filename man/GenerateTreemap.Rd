@@ -6,6 +6,19 @@
 \usage{
 GenerateTreemap(m, edges = NULL, ...)
 }
+\arguments{
+\item{m}{GeneMatrix object representing GO terms}
+
+\item{...}{Extra arguments passed on to threshold_sets}
+}
+\value{
+Generates a treemap hierarchy
+Treemap GO Plot
+
+Generate a treemap plot using the minimal spanning GO tree with genes assigned to individual GO terms.
+
+Default color based on GO significance and effect sizes of individual genes
+}
 \description{
 Visualize genes nested within specific and general GO sets using treemaps
 }

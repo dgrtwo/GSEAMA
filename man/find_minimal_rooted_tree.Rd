@@ -10,8 +10,6 @@ find_minimal_rooted_tree(nodes, edges)
 \item{nodes}{data_frame significance of gene sets}
 
 \item{edges}{data_frame go_id1 are parents of go_id2}
-
-\item{ancestors}{data_frame go_id1 are ancestors of go_id2}
 }
 \value{
 an igraph object of the gene set minimal spanning tree

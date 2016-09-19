@@ -11,6 +11,11 @@
 #' 2) ancestors of LASSO nodes all get a smaller score: [min(abs(beta))]*0.01*N_lasso_children
 #' - applied to edge where ancestors are children
 #' 3) all remaining edges that are not predictive recieve a tiny weight so that they are not filtered: [min(abs(beta))]*1e-4
+#' 
+#' @inheritParams GetEdgesTable
+#' 
+#' @export
+#' @return Generates a treemap hierarchy
 GenerateTreemap <- function(m, edges = NULL, ...) {
   if (is.null(edges)) {
     signif_sets <- ThresholdSets(m, ...)
@@ -65,50 +70,146 @@ GenerateTreemap <- function(m, edges = NULL, ...) {
   minimal_edge_set <- find_minimal_rooted_tree(nodes, edges)
   
   # find the optimal path to assign each gene
+  gene_paths <- assign_genes_to_paths(m, minimal_edge_set)
   
-  function(m, minimal_edge_set){
+  # prune gene sets that are not used
+  all_used_go_terms <- unique(gene_paths$full_path$ID)
+  utilized_go_network <- igraph::delete_vertices(minimal_edge_set, setdiff(igraph::V(minimal_edge_set)$name, all_used_go_terms))
+  
     
-    for(a_gene in m@geneData$ID){
-      
-      gene_GO <- m@matrix[a_gene, m@matrix[a_gene,] == 1] %>% names()
-      # add ancestors
-      gene_GO <- union(gene_GO, ancestors$go_id1[ancestors$go_id2 %in% gene_GO])
-      gene_GO <- c(gene_GO[gene_GO %in% nodes$ID], "root")
-      
-      gene_subgraph <- igraph::induced_subgraph(minimal_edge_set, gene_GO)
-      gene_subgraph_clusters <- igraph::clusters(gene_subgraph)
-      gene_subgraph <- igraph::induced_subgraph(minimal_edge_set, names(gene_subgraph_clusters$membership)[gene_subgraph_clusters$membership == gene_subgraph_clusters$membership['root']])
-      
-      gene_paths <- get.shortest.paths(gene_subgraph, from = "root", to = V(gene_subgraph))$vpath
-      lapply(seq_along(gene_paths), function(i){
-        gene_paths[[i]]
-      })
-      
-      
-      gene_subset_path <- reshape2::melt(get.shortest.paths(gene_subgraph, from = "root", to = V(gene_subgraph))[[1]], level = 1)
-      colnames(gene_subset_path) <- c("path", "leaf")
-      gene_subset_path$path <- V(gene_graph_subset)$name[gene_subset_path$path]
-      gene_subset_path$leaf <- V(gene_graph_subset)$name[gene_subset_path$leaf]
-      
-      
-      
-    }
-        
-        
+  #' Treemap GO Plot
+  #' 
+  #' Generate a treemap plot using the minimal spanning GO tree with genes assigned to individual GO terms.
+  #' 
+  #' Default color based on GO significance and effect sizes of individual genes
+  treemap_GO_plot <- function(m, gene_paths, utilized_go_network, treemap_thresh = 4, ...){
     
+    # gene effects
+    gene_treemap_data <- gene_paths$assigned_genes %>%
+      dplyr::left_join(m@geneData %>% dplyr::select(gene = ID, gene_effect = y), by = "gene") %>%
+      dplyr::mutate(gene_effect = pmax(pmin(gene_effect, treemap_thresh), -1*treemap_thresh))
     
+    gene_treemap_data <- gene_treemap_data %>%
+      dplyr::select(ID = gene, gene_effect) %>%
+      dplyr::mutate(go_name = NA_character_,
+                    go_effect = NA_real_,
+                    data_type = "gene")
     
+    # go effects
+    go_treemap_data <- m@colData %>%
+      dplyr::filter(ID %in% intersect(signif_sets, igraph::V(utilized_go_network)$name)) %>%
+      dplyr::select_("ID", go_name = "Term", go_effect = m@plottingMetric)
     
+    go_treemap_data <- tibble::data_frame(ID = igraph::V(utilized_go_network)$name) %>%
+      dplyr::left_join(go_treemap_data, by = "ID") %>%
+      dplyr::mutate(gene_effect = NA_real_,
+                    data_type = "go")
     
+    all_node_data <- dplyr::bind_rows(gene_treemap_data, go_treemap_data)
+    
+    # update network
+    updated_edges <- dplyr::bind_rows(
+      igraph::get.edgelist(utilized_go_network) %>% as.data.frame(stringsAsFactors = F),
+      unname(gene_paths$assigned_genes) %>% as.matrix() %>% as.data.frame(stringsAsFactors = F))
+    
+    # use utilized_go_network with genes assigned to categories
+    full_treemap_data <- igraph::graph_from_data_frame(updated_edges, directed = TRUE, vertices = all_node_data)
+    
+    # update network 
+    
+    #library(ggraph)
+    #library(ggplot2)
+    
+    #ggraph(full_treemap_data, 'igraph', algorithm = 'tree', circular = TRUE) + 
+    # geom_edge_diagonal(aes(alpha = ..index..)) +
+    #  coord_fixed() + 
+    #  scale_edge_alpha('Direction', guide = 'edge_direction') +
+    #  geom_node_point(aes(color = gene_effect, filter = igraph::degree(full_treemap_data, mode = 'out') == 0), size = 1) +
+    #  ggforce::theme_no_axes() +
+    #  scale_color_gradient2("MeanDifference", low = "blue", high = "red")
+    
+    # tree
+    
+    full_treemap_data <- ggraph::treeApply(full_treemap_data, function(node, parent, depth, tree) {
+      tree <- igraph::set_vertex_attr(tree, 'depth', node, depth)
+      if (depth == 1) {
+        tree <- igraph::set_vertex_attr(tree, 'class', node, igraph::V(tree)$shortName[node])
+      } else if (depth > 1) {
+        tree <- igraph::set_vertex_attr(tree, 'class', node, igraph::V(tree)$class[parent])
+      }
+      tree
+    })
+  igraph::V(full_treemap_data)$leaf <- igraph::degree(full_treemap_data, mode = 'out') == 0
+
+ggraph(full_treemap_data, 'treemap') + 
+  geom_treemap(aes(fill = gene_effect, filter = leaf), colour = NA) + 
+  geom_treemap(aes(size = depth * ifelse(data_type == "gene", 1, 0), alpha = depth,
+                   colour = ifelse(data_type == "gene", "white", ifelse(go_effect != 0, "yellow", "black"))), fill = NA) + 
+  geom_node_text(aes(label = go_name), size = 3, check_overlap = T, repel = T) +
+  scale_fill_gradient2("MeanDifference", low = "green3", high = "firebrick1") +
+  scale_color_identity() +
+  scale_size(range = c(1, 0), guide = 'none') +
+  scale_alpha(range = c(1, 0.2), guide = 'none') +
+  ggforce::theme_no_axes()
     
   }
+}
 
+
+get_minimal_gene_path <- function(a_gene, m, nodes, minimal_edge_set){
   
-ggraph::ggraph(minimal_edge_set, 'igraph', algorithm = 'tree') + 
-  ggraph::geom_edge_link() +
-  ggforce::theme_no_axes()
+  gene_GO <- m@matrix[a_gene, m@matrix[a_gene,] == 1, drop = F] %>% colnames()
+  # add ancestors that may have been missed for the gene
+  gene_GO <- union(gene_GO, ancestors$go_id1[ancestors$go_id2 %in% gene_GO])
+  gene_GO <- gene_GO[gene_GO %in% nodes$ID]
+  
+  gene_subgraph <- igraph::induced_subgraph(minimal_edge_set, gene_GO)
+  
+  gene_paths <- igraph::get.shortest.paths(gene_subgraph, from = "root", to = igraph::V(gene_subgraph))$vpath
+  gene_paths <- lapply(seq_along(gene_paths), function(i){
+    tibble::data_frame(ID = gene_paths[[i]]$name) %>%
+      dplyr::mutate(gene = a_gene, terminus = igraph::V(gene_subgraph)$name[i], step = 1:n())
+  }) %>%
+    dplyr::bind_rows()
+  
+  gene_paths
+}
 
-
+#' Assign Genes to Paths
+#' 
+#' Assign genes to a GO hierarchy which has the greatest signal
+#' 
+#' @inheritParams GenerateTreemap
+#' @param minimal_edge_set a network which is a weighted directed minimal spanning tree of gene ontologies
+#' 
+#' @return a data_frame which contains which terminal gene set each gene is assigned to
+assign_genes_to_paths <- function(m, minimal_edge_set, ...){
+  
+  # find all paths for each gene
+  all_gene_paths <- mclapply(m@geneData$ID, function(a_gene){
+    print(a_gene)
+    get_minimal_gene_path(a_gene, m, nodes, minimal_edge_set)
+  }, mc.cores = parallel::detectCores()) %>%
+    dplyr::bind_rows()
+  
+  # all shortest paths found, now find the path that maximizes the path weight
+  
+  assigned_paths <- all_gene_paths %>%
+    dplyr::left_join(nodes, by = "ID") %>%
+    dplyr::group_by(gene, terminus) %>%
+    dplyr::summarize(Weight = sum(Weight),
+                     nWeight = sum(nWeight),
+                     nSteps = n()) %>%
+    dplyr::group_by(gene) %>%
+    dplyr::arrange(desc(Weight), desc(nWeight), nSteps) %>%
+    dplyr::slice(1)
+  
+  gene_paths <- list()
+  gene_paths$full_path <- all_gene_paths %>%
+    dplyr::semi_join(assigned_paths, by = c("terminus", "gene"))
+  gene_paths$assigned_genes <- assigned_paths %>%
+    dplyr::select(terminus, gene)
+  gene_paths
 }
 
 #' Find Minimal Rooted Tree
@@ -118,7 +219,6 @@ ggraph::ggraph(minimal_edge_set, 'igraph', algorithm = 'tree') +
 #' 
 #' @param nodes data_frame significance of gene sets
 #' @param edges data_frame go_id1 are parents of go_id2
-#' @param ancestors data_frame go_id1 are ancestors of go_id2
 #' 
 #' @return an igraph object of the gene set minimal spanning tree
 find_minimal_rooted_tree <- function(nodes, edges){
@@ -148,40 +248,10 @@ find_minimal_rooted_tree <- function(nodes, edges){
   GO_graph_parsimony <- igraph::delete_edges(GO_graph_parsimony, pruned_edges)
   
   if(clusters(minimum_igraph_network)$no != 1 | clusters(GO_graph_parsimony)$no != 1){
-    message("a single connected network was not found in the minimal network")
+    stop("a single connected network was not found in the minimal network")
   }
   if(setdiff(igraph::get.edgelist(minimum_igraph_network)[,1],igraph::get.edgelist(minimum_igraph_network)[,2]) != "root"){
-    message("a single root was not found in the minimal network") 
-  }
-  
-  
-  
-  
-  NEL_edges <- list()
-  for(vertex in GO_optim_branching$nodes){
-    # a named list pointing to children, including associated weights
-    NEL_edges[[vertex]]$edges <- edmonds_edgeList$to[edmonds_edgeList$from == vertex]
-    NEL_edges[[vertex]]$weigths <- GO_optim_branching$weights[edmonds_edgeList$from == vertex]
-  }
-  
-  GO_graph_parsimony <- igraph::igraph.from.graphNEL(new("graphNEL", nodes = GO_optim_branching$nodes, edgeL = NEL_edges, edgemode="directed"))
-  GO_graph_edgelist <- igraph::get.edgelist(GO_graph_parsimony)
-  
-  # remove self-links that were added by graphNel
-  GO_graph_parsimony <- igraph::delete.edges(GO_graph_parsimony, which(GO_graph_edgelist[,1] == GO_graph_edgelist[,2]))
-  
-  GO_graph_clusters <- igraph::clusters(GO_graph_parsimony)
-  
-  if(GO_graph_clusters$no != 1){
-    message("Some GO categories were seperated from the root; these branches will be rerooted")
-    
-    while(GO_graph_clusters$no != 1){
-    GO_graph_parsimony <- update_treemap_root(GO_graph_parsimony)
-    GO_graph_clusters <- clusters(GO_graph_parsimony)
-    }
-  }
-  if(length(unique(GO_graph_edgelist[,2])) != nrow(GO_graph_edgelist)){
-    stop("Some GO categories have multiple parents; edmonds algorithm failed")
+    stop("a single root was not found in the minimal network") 
   }
   
   GO_graph_parsimony
