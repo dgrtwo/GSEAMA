@@ -71,6 +71,8 @@ GenerateTreemap <- function(m, edges = NULL, ...) {
     for(a_gene in m@geneData$ID){
       
       gene_GO <- m@matrix[a_gene, m@matrix[a_gene,] == 1] %>% names()
+      # add ancestors
+      gene_GO <- union(gene_GO, ancestors$go_id1[ancestors$go_id2 %in% gene_GO])
       gene_GO <- c(gene_GO[gene_GO %in% nodes$ID], "root")
       
       gene_subgraph <- igraph::induced_subgraph(minimal_edge_set, gene_GO)
@@ -100,18 +102,10 @@ GenerateTreemap <- function(m, edges = NULL, ...) {
     
     
   }
+
   
-  gene_graph_subset <- delete.vertices(gene_graph_subset, V(gene_graph_subset)$name[!(V(gene_graph_subset)$name %in% systematic_to_GOIDs$go_id[systematic_to_GOIDs$systematic_name == a_gene])])
-    
-    
-  
-  
-  
-  
-  
-  
-ggraph(GO_graph_parsimony, 'igraph', algorithm = 'tree') + 
-  geom_edge_link() +
+ggraph::ggraph(minimal_edge_set, 'igraph', algorithm = 'tree') + 
+  ggraph::geom_edge_link() +
   ggforce::theme_no_axes()
 
 
@@ -130,7 +124,7 @@ ggraph(GO_graph_parsimony, 'igraph', algorithm = 'tree') +
 find_minimal_rooted_tree <- function(nodes, edges){
   
   if(clusters(graph_from_data_frame(edges))$no != 1){
-   stop("edges must be a single connected network") 
+    stop("edges must be a single connected network") 
   }
   
   edge_weights <- edges %>%
@@ -139,13 +133,30 @@ find_minimal_rooted_tree <- function(nodes, edges){
     dplyr::mutate(weight = nWeight_1 * 0.1 + nWeight_2,
                   weight = ifelse(weight == 0, min(weight[weight != 0])*1e-4, weight))
   
- GO_graph_NEL <- new("graphNEL", nodes = nodes$ID, edgemode="directed")
+  GO_graph_NEL <- new("graphNEL", nodes = nodes$ID, edgemode="directed")
   GO_graph_NEL <- graph::addEdge(from = edge_weights$go_id1, to = edge_weights$go_id2, graph = GO_graph_NEL, weights = edge_weights$weight)
   
   GO_optim_branching <- RBGL::edmondsOptimumBranching(GO_graph_NEL)
   
   # recreate graphNEL object from edmonds output 
   edmonds_edgeList <- as.data.frame(t(GO_optim_branching$edgeList))
+  minimum_igraph_network <- graph_from_data_frame(edmonds_edgeList)
+  
+  # 
+  GO_graph_parsimony <- graph_from_data_frame(edges, vertices = nodes)
+  pruned_edges <- attr(igraph::E(GO_graph_parsimony), "vnames")[!(attr(igraph::E(GO_graph_parsimony), "vnames") %in% attr(igraph::E(minimum_igraph_network), "vnames"))]
+  GO_graph_parsimony <- igraph::delete_edges(GO_graph_parsimony, pruned_edges)
+  
+  if(clusters(minimum_igraph_network)$no != 1 | clusters(GO_graph_parsimony)$no != 1){
+    message("a single connected network was not found in the minimal network")
+  }
+  if(setdiff(igraph::get.edgelist(minimum_igraph_network)[,1],igraph::get.edgelist(minimum_igraph_network)[,2]) != "root"){
+    message("a single root was not found in the minimal network") 
+  }
+  
+  
+  
+  
   NEL_edges <- list()
   for(vertex in GO_optim_branching$nodes){
     # a named list pointing to children, including associated weights
@@ -157,105 +168,63 @@ find_minimal_rooted_tree <- function(nodes, edges){
   GO_graph_edgelist <- igraph::get.edgelist(GO_graph_parsimony)
   
   # remove self-links that were added by graphNel
-  GO_graph_parsimony <- delete.edges(GO_graph_parsimony, which(GO_graph_edgelist[,1] == GO_graph_edgelist[,2]))
+  GO_graph_parsimony <- igraph::delete.edges(GO_graph_parsimony, which(GO_graph_edgelist[,1] == GO_graph_edgelist[,2]))
   
   GO_graph_clusters <- igraph::clusters(GO_graph_parsimony)
   
-  if(length(unique(GO_graph_edgelist[,2])) != nrow(GO_graph_edgelist)){
-    stop("Some GO categories have multiple parents; edmonds algorithm failed")
-  }
   if(GO_graph_clusters$no != 1){
     message("Some GO categories were seperated from the root; these branches will be rerooted")
     
-    new_roots <- c()
-    for(i in seq_along(GO_graph_clusters$csize)){
-      if(GO_graph_clusters$membership['root'] == i){next}
-      
-      subgraph_nodes <- names(which(GO_graph_clusters$membership == i))
-      
-      subgraph_edgelist <- igraph::induced_subgraph(GO_graph_parsimony, subgraph_nodes) %>%
-        igraph::get.edgelist()
-      
-      subgraph_root <- setdiff(subgraph_edgelist[,1], subgraph_edgelist[,2])
-      if(length(subgraph_root) == 0){
-       subgraph_root <-  subgraph_nodes
-      }
-      
-      new_roots <- c(new_roots, subgraph_root)
+    while(GO_graph_clusters$no != 1){
+    GO_graph_parsimony <- update_treemap_root(GO_graph_parsimony)
+    GO_graph_clusters <- clusters(GO_graph_parsimony)
     }
-    
-    $
-    
-    }
-  
-  GO_graph_parsimony  
   }
+  if(length(unique(GO_graph_edgelist[,2])) != nrow(GO_graph_edgelist)){
+    stop("Some GO categories have multiple parents; edmonds algorithm failed")
+  }
+  
+  GO_graph_parsimony
+}
 
-
-LASSO_guided_GO_tree <- function(GO_inheritance_subset, GOweights, involvedGenes){
+update_treemap_root <- function(GO_graph_parsimony){
   
-  # tkplot(GO_graph_parsimony)
+  GO_graph_clusters <- igraph::clusters(GO_graph_parsimony)
   
-  #### Use the simplified tree to assign each gene to the most predicitve subgraph (Highest sum of LASSO) ####
-  # We now know that each child node has one parents
-  
-  unique_gene_ancestry <- NULL
-  
-  for(a_gene in unique(systematic_to_GOIDs$systematic_name)){
+  new_roots <- c()
+  for(i in seq_along(GO_graph_clusters$csize)){
+    if(GO_graph_clusters$membership['root'] == i){next}
     
-    gene_graph_subset <- GO_graph_parsimony
-    # delete all categories nodes not associated with the gene of interest
-    gene_graph_subset <- delete.vertices(gene_graph_subset, V(gene_graph_subset)$name[!(V(gene_graph_subset)$name %in% systematic_to_GOIDs$go_id[systematic_to_GOIDs$systematic_name == a_gene])])
+    subgraph_nodes <- names(which(GO_graph_clusters$membership == i))
     
-    if(length(V(gene_graph_subset)$name) == 1){
-      
-      unique_gene_ancestry <- rbind(unique_gene_ancestry, data.frame(gene = a_gene, sequence = V(gene_graph_subset)$name, level = 1, L1 = 0))
-      
-    }else{
-      
-      edgeL_subset <- as.data.frame(get.edgelist(gene_graph_subset))
-      # find the weights of the chosen edges
-      edgeL_subset <- edgeL_subset %>% dplyr::select(parent = V1, child = V2) %>% left_join(GO_inheritance_subset, by = c("parent", "child"))
-      edgeL_subset$LASSO[edgeL_subset$Category == "Uninformative"] <- 0
-      
-      root <- unique(edgeL_subset$parent[!(edgeL_subset$parent %in% edgeL_subset$child)]) # identify root by it only serving as a source
-      
-      gene_subset_path <- melt(get.shortest.paths(gene_graph_subset, from = root, to = V(gene_graph_subset))[[1]], level = 1)
-      colnames(gene_subset_path) <- c("path", "leaf")
-      gene_subset_path$path <- V(gene_graph_subset)$name[gene_subset_path$path]
-      gene_subset_path$leaf <- V(gene_graph_subset)$name[gene_subset_path$leaf]
-      
-      path_score <- function(path){
-        data.frame(parent = path[1:(length(path)-1)], child = path[2:length(path)]) %>%
-          left_join(edgeL_subset, by = c("parent", "child")) %>% summarize(LASSO = sum(LASSO)) %>% unlist() %>% unname()  
-      }
-      
-      path_scores <- gene_subset_path %>% group_by(leaf) %>% dplyr::summarize(
-        LASSO = path_score(path), steps = n()
-      )
-      
-      if(any(edgeL_subset$Category == "LASSO")){
-        # At least one path includes a LASSO node - choose the path with the highest score
-        GOancestry <- path_scores %>% arrange(-LASSO, steps) %>% dplyr::slice(1) %>% left_join(gene_subset_path, by = "leaf") 
-        
-        GOancestry <- GOancestry %>% left_join(
-          GOancestry %>% dplyr::select(path) %>% left_join(GOweights %>% dplyr::select(path = ID, L1 = beta_1se), by = "path") %>%
-            dplyr::mutate(L1 = ifelse(!is.na(L1), abs(L1), 0)),
-          by = c("path"))
-        
+    subgraph_graph <- igraph::induced_subgraph(GO_graph_parsimony, subgraph_nodes)
+    
+    subgraph_root <- setdiff(igraph::get.edgelist(subgraph_graph)[,1], igraph::get.edgelist(subgraph_graph)[,2])
+    if(length(subgraph_root) == 0){
+      # if there is no parent then either there is one node or the graph is not a DAG
+      if(length(subgraph_nodes) == 1){
+        subgraph_root <- subgraph_nodes 
       }else{
-        # No path includes a LASSO node - choose the path with the highest ancestor weight and then prune at the 4th level
-        GOancestry <- path_scores %>% arrange(-LASSO, -steps) %>% slice(1) %>% left_join(gene_subset_path, by = "leaf") %>%
-          dplyr::mutate(L1 = 0)
-        if(nrow(GOancestry) > 4){
-          GOancestry <- GOancestry %>% slice(1:4) 
+        # solve the mst problem
+        mst_graph <- igraph::minimum.spanning.tree(igraph::induced_subgraph(GO_graph_parsimony, subgraph_nodes))
+        
+        # figure out which edges were removed
+        GO_graph_parsimony <- igraph::delete_vertices(GO_graph_parsimony, E(subgraph_graph)[setdiff(E(subgraph_graph), E(mst_graph))])
+        
+        subgraph_root <- setdiff(igraph::get.edgelist(mst_graph)[,1], igraph::get.edgelist(mst_graph)[,2])
+        
+        if(length(subgraph_root) == 0){
+          subgraph_root <- subgraph_nodes
         }
       }
-      
-      GOancestry <- GOancestry %>% dplyr::mutate(gene = a_gene, level = 1:length(path)) %>% dplyr::select(gene, sequence = path, level, L1)
-      
-      unique_gene_ancestry <- rbind(unique_gene_ancestry, GOancestry)
-      
     }
+    if(length(subgraph_root) == 0){stop("no root found")}
+    new_roots <- c(new_roots, subgraph_root)
   }
+  
+  if(length(new_roots) != 0){
+  GO_graph_parsimony <- igraph::add_edges(GO_graph_parsimony, c(t(data_frame("root", new_roots))))
+  }
+  
+  GO_graph_parsimony
 }
