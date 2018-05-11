@@ -7,7 +7,7 @@ Installation
 First install the Bioconductor dependencies:
 
     source("http://bioconductor.org/biocLite.R")
-    biocLite(c("GO.db", "AnnotationDbi"))
+    biocLite(c("GO.db", "AnnotationDbi", "qvalue"))
 
 Then install the [devtools](https://github.com/hadley/devtools) package, and use it to install GSEAMA:
 
